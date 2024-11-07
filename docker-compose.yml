@@ -1,0 +1,73 @@
+version: "3"
+networks:
+  hie:
+
+services:
+  fhir:
+    container_name: fhir
+    image: hapiproject/hapi:latest
+    ports:
+      - "8080:8080"
+    networks:
+      - hie
+    environment:
+      profiles.active: r4
+      spring.datasource.url: "jdbc:postgresql://db:5432/hapi"
+      spring.datasource.username: admin
+      spring.datasource.password: admin
+      spring.datasource.driverClassName: org.postgresql.Driver
+      spring.jpa.properties.hibernate.search.enabled: "true"
+      spring.jpa.properties.hibernate.search.backend.type: lucene
+      spring.jpa.properties.hibernate.search.backend.directory.type: local-filesystem
+      spring.jpa.properties.hibernate.search.backend.directory.root: target/lucenefiles
+      spring.jpa.properties.hibernate.search.backend.lucene_version: lucene_current
+      spring.jpa.properties.hibernate.dialect: ca.uhn.fhir.jpa.model.dialect.HapiFhirPostgres94Dialect
+      hapi.fhir.tester.home.server_address: "http://fhir:8080/fhir"
+      hapi.fhir.enable_index_missing_fields: "true"
+
+    volumes:
+      - hapi-data:/data/hapi
+    depends_on:
+      - db
+
+  db:
+    image: postgres
+    networks:
+      - hie
+    restart: always
+    environment:
+      POSTGRES_PASSWORD: admin
+      POSTGRES_USER: admin
+      POSTGRES_DB: hapi
+    ports:
+      - "5432:5432"
+
+  elasticsearch:
+    container_name: elasticsearch
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.9.2
+    environment:
+      node.name: es01
+      discovery.type: single-node
+      bootstrap.memory_lock: "true"
+      ES_JAVA_OPTS: -Xms512m -Xmx512m
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    volumes:
+      - es-data:/usr/share/elasticsearch/data
+    ports:
+      - 9200:9200
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:7.9.2
+    container_name: kibana
+    ports:
+      - 5601:5601
+    environment:
+      ELASTICSEARCH_URL: http://elasticsearch:9200
+      ELASTICSEARCH_HOSTS: http://elasticsearch:9200
+
+volumes:
+  hapi-data:
+  es-data:
